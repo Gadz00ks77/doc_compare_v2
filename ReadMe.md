@@ -10,6 +10,7 @@ This version is slower BUT it is cleaner and could be adapted for different docu
 5. launch "streamlit run Landing_Page.py" from Command Line
 
 ### Libraries
+I didn't specify any versions for these when I built this, so I don't anticipate any dependency clash.
 * boto3
 * streamlit
 * opencv-python
@@ -17,8 +18,9 @@ This version is slower BUT it is cleaner and could be adapted for different docu
 * spacy (with en_core_web_md)
 
 ### Folders
-./working
-./bold_images
-./boldbox_working_textract
-./pdf_images
-./textbox_working_textract
+Create in the root of your python project.
+* ./working
+* ./bold_images
+* ./boldbox_working_textract
+* ./pdf_images
+* ./textbox_working_textract
