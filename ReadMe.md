@@ -1,6 +1,6 @@
 #DocCompare - Textract Ver
 This version uses AWS textract and resolves the document section headers programmatically (instead of using a list to search for.)
-This version is slower, and does not use Spacy etc. for the sentence comparison BUT it is cleaner and could be adapted for different document "types" more successfullly.
+This version is slower BUT it is cleaner and could be adapted for different document "types" more successfully.
 
 ##Instructions / Prereqs
 1. Python 3.8
@@ -14,6 +14,7 @@ This version is slower, and does not use Spacy etc. for the sentence comparison 
 * streamlit
 * opencv-python
 * PyMuPDF
+* spacy (with en_core_web_md)
 
 ###Folders
 ./working

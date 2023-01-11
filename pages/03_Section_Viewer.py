@@ -1,6 +1,7 @@
 import streamlit as st
 import json as j
 import plot_generator as po
+import compare_section as cs
 
 def fetch_keys(file_names):
 
@@ -158,5 +159,14 @@ else:
         
         page_view_expander2.image(plot_img2)
 
-        st.text('Key Values')
-        st.json(this_keys_json2,expanded=False)
+    with col1:
+
+        compare1 = cs.return_candidate(filename=filename,key=key_lookup_val)
+        compare2 = cs.return_candidate(filename=filename2,key=key_lookup_val)
+        result = cs.compare_it(compare_first=compare1.upper(),compare_second=compare2.upper())
+        presult = str(int(result * 100))+'%'
+
+        col1.title('Analysis')
+
+        col1.text('Overall Similarity')
+        col1.header(presult)
