@@ -115,7 +115,7 @@ def page_margin_set(file_name):
 
         margin_dict = {}
         page_num = page['page_num']
-        margin_dict['page_num']=page_num
+        margin_dict['page_num']=int(page_num)
         for block in page['output']['Blocks']:
             if block['BlockType']=='MERGED':
                 leftx = block['Geometry']['BoundingBox']['Left']
@@ -169,8 +169,7 @@ def doc_margin_set(file_name):
     found_centres = []
 
     for candidate in doc_margins:
-        # relying on implicit ordering here for left_num etc, so not great...
-        if 0 <= float(candidate) < 0.4:
+        if 0 <= float(candidate) < 0.25:
             if doc_margins[candidate]>(page_cnt+int(page_cnt/20)):
                 if candidate not in found_lefts:
                     left_num = left_num + 1
@@ -184,87 +183,62 @@ def doc_margin_set(file_name):
         
     return margin_set
 
+def margset_for_page(page_num,doc_margins,page_margins):
+
+    add_these = []
+    page_out_set = []
+
+    for page in page_margins:
+        if page['page_num']==page_num:
+            for margin in doc_margins:
+                if 'left_margin' in margin:
+                    if margin['left_margin'] in page:
+                        add_these.append(margin['left_margin'])
+
+    sort_add = sorted(add_these)
+
+    num = 0
+
+    for add in sort_add:
+        num = num + 1
+        page_out_set.append({
+            'left_num':num,
+            'left_margin':add
+        })
+
+    return page_out_set
+
+
 def tag_margins_doc_level(file_name):
 
     folder = file_name.replace(' ','_').replace('-','_').replace(".pdf","")
 
     margin_set = doc_margin_set(file_name=file_name)
+    page_margins = page_margin_set(file_name=file_name)
 
     with open(f'./textbox_working_textract/{folder}/tagged_output.json', 'rb') as f:
         outputj = j.load(f)
 
         for page in outputj:
+            page_num = page['page_num']
+            page_set = margset_for_page(page_num=page_num,doc_margins=margin_set,page_margins=page_margins)
             for block in page['output']['Blocks']:
                 if block['BlockType']=='MERGED':
                     leftx = block['Geometry']['BoundingBox']['Left']
 
-                    for m in margin_set:
+                    for m in page_set:
+                    # for m in margin_set:
                         if 'left_margin' in m: 
                             if m['left_margin']==leftx:
                                 block['MARGIN_IDENT']='LEFT'
                                 block['MARGIN_NUM_FOR_TYPE']=m['left_num']
-                        elif 'centre_margin' in m:
-                            if m['centre_margin']==leftx:
-                                block['MARGIN_IDENT']='CENTRE'
-                                block['MARGIN_NUM_FOR_TYPE']=m['centre_num']
+                        # (removed centre stuff for now)
+                        # elif 'centre_margin' in m:
+                        #     if m['centre_margin']==leftx:
+                        #         block['MARGIN_IDENT']='CENTRE'
+                        #         block['MARGIN_NUM_FOR_TYPE']=m['centre_num']
 
     with open(f'./textbox_working_textract/{folder}/tagged_margins_output.json', 'w') as f:
         j.dump(outputj, f, ensure_ascii=False)
 
     return 1
-
-def doc_headfoot_set(file_name):
-
-    # Assumption: Frequency for a left margin must be > page count + 5% (or == page count where page count == 1) and < 0.40% of page
-    # Assumption: Frequency for centre margins between +/- 10pp of 50%
-
-    folder = file_name.replace(' ','_').replace('-','_').replace(".pdf","")
-
-    with open(f'./textbox_working_textract/{folder}/tagged_output.json', 'rb') as f:
-        outputj = j.load(f)
-
-    doc_margins = {}
-    page_cnt = 0
-
-    all_tops = []
-
-    for page in outputj:
-        page_cnt = page_cnt + 1
-        for block in page['output']['Blocks']:
-            if block['BlockType']=='MERGED':
-                top = block['Geometry']['BoundingBox']['Top']
-                all_tops.append(top)
-                # if leftx in doc_margins:
-                #     doc_margins[leftx] = doc_margins[leftx]+1
-                # else:
-                #     doc_margins[leftx] = 1
-    
-    sorted_all_tops = sorted(all_tops)
-
-    for top in sorted_all_tops:
-        if top in doc_margins:
-            doc_margins[top] = doc_margins[top]+1
-        else:
-            doc_margins[top] = 1
-
-    # margin_set = []
-    # left_num = 0
-    # found_lefts = []
-    # centre_num = 0
-    # found_centres = []
-
-    # for candidate in doc_margins:
-    #     # relying on implicit ordering here for left_num etc, so not great...
-    #     if 0 <= float(candidate) < 0.4:
-    #         if doc_margins[candidate]>(page_cnt+int(page_cnt/20)):
-    #             if candidate not in found_lefts:
-    #                 left_num = left_num + 1
-    #                 margin_set.append({'left_num':left_num,'left_margin':candidate})
-    #                 found_lefts.append(candidate)
-    #     elif 0.45 <= float(candidate) < 0.55:
-    #         if candidate not in found_centres:
-    #             centre_num = centre_num + 1
-    #             found_centres.append(candidate)
-    #             margin_set.append({'centre_num':centre_num,'centre_margin':candidate})
-        
-    return doc_margins

@@ -6,6 +6,7 @@ import json as j
 import logging
 from botocore.exceptions import ClientError
 import copy
+import concurrent.futures
 
 logger = logging.getLogger(__name__)
 
@@ -253,6 +254,31 @@ def gen_merged_box(raw_output):
 
     return modified_output
 
+def fetch_textract(file_path,txtclient):
+
+    TextClass = TextractWrapper(textract_client=txtclient)
+    text_output = TextClass.detect_file_text(document_file_name=file_path)
+
+    name_file = file_path[file_path.rfind('/'):]
+    name_only = name_file.replace('.png','')
+    page_num = int(name_only[name_only.find('-')+1:])
+
+    page_set = {'page_num':page_num}
+    # text_output = TextClass.detect_file_text(document_file_name=file_path)
+    page_set['output']=text_output
+
+    return page_set
+
+def gen_file_paths(imgfolder):
+
+    paths = []
+
+    for file_name in os.listdir(imgfolder):
+        file_path = os.path.join(imgfolder,file_name)
+        paths.append(file_path)
+
+    return paths
+
 def collect_textract_all_pages(file_name,bold=None):
 
     tclient = boto3.client('textract')
@@ -270,18 +296,14 @@ def collect_textract_all_pages(file_name,bold=None):
 
     result_set = []
 
-    for filename in os.listdir(img_folder):
-        file_path = os.path.join(img_folder, filename)
+    file_path_set = gen_file_paths(imgfolder=img_folder)
 
-        TextClass = TextractWrapper(textract_client=tclient)
-        name_only = filename.replace('.png','')
-        page_num = name_only[name_only.find('-')+1:]
-
-        page_set = {'page_num':page_num}
-        text_output = TextClass.detect_file_text(document_file_name=file_path)
-        page_set['output']=text_output
-
-        result_set.append(copy.deepcopy(page_set))
+    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+        future_to_url = {executor.submit(fetch_textract,fpath,tclient): fpath for fpath in file_path_set}
+        for future in concurrent.futures.as_completed(future_to_url):
+            fpath = future_to_url[future]
+            data = future.result()
+            result_set.append(copy.deepcopy(data))
 
     sorted_result = result_set
 
@@ -292,3 +314,4 @@ def collect_textract_all_pages(file_name,bold=None):
 
     return sorted_result
 
+# collect_textract_all_pages('westjet 2020-2021.pdf')

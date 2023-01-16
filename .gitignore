@@ -6,3 +6,4 @@ pdf_images
 textbox_working_textract
 __pycache__
 .vscode/launch.json
+temp

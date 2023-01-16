@@ -3,9 +3,7 @@ import numpy as np
 import os,shutil
 from pathlib import Path
 import copy
-# import pytesseract
-# from pytesseract import Output
-# from PIL import Image
+import concurrent.futures
 
 def del_image_files(folder_name):
 
@@ -45,6 +43,16 @@ def process_image(folder_name,image_file_name):
     out=cv2.bitwise_or(img, marker_color)
     cv2.imwrite(filename=f'./bold_images/{folder_name}/{image_file_name}',img=out)
 
+    return 1
+
+def gen_file_paths(img_folder):
+
+    file_names = []
+
+    for filename in os.listdir(img_folder):
+        file_names.append(filename)
+
+    return file_names
 
 def run_bold_process(file_name):
 
@@ -54,9 +62,17 @@ def run_bold_process(file_name):
     Path(f"./bold_images/{folder_name}").mkdir(parents=True, exist_ok=True)
     del_image_files(folder_name=folder_name)
 
-    for filename in os.listdir(img_folder):
+    file_set = gen_file_paths(img_folder=img_folder)
+
+    # for filename in os.listdir(img_folder):
         # file_path = os.path.join(img_folder, filename)
-        process_image(folder_name=folder_name,image_file_name=filename)
+        # process_image(folder_name=folder_name,image_file_name=filename)
+
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        future_to_image = {executor.submit(process_image,folder_name,fname): fname for fname in file_set}
+        for future in concurrent.futures.as_completed(future_to_image):
+            fname = future_to_image[future]
+            data = future.result()
 
     return 1
 

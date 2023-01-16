@@ -2,6 +2,10 @@ import json as j
 import re 
 import math as m
 
+def round_up(n, decimals=0):
+    multiplier = 10 ** decimals
+    return m.ceil(n * multiplier) / multiplier
+
 def stringclean(input):
 
     try:
@@ -20,11 +24,25 @@ def get_matches(item_list,input_dict,key,on_page):
     inputybottom = input_dict['y1']
 
     for item in item_list:
-        compareytop = item['box']['y2']
-        compareybottom = item['box']['y1']
+        # compareytop = item['box']['y2']
+        # compareybottom = item['box']['y1']
+
+        compareybottom = item['box']['y2']
+        compareytop = item['box']['y1']
+
         if stringclean(item['text'])!= key:
             if item['text_page']==on_page:
-                if inputytop > compareybottom and inputybottom < compareytop: 
+
+                # THIS WASN'T RIGHT. ADJUSTED.
+                rcyt = int(round_up(compareytop,2)*1000)
+                riyt = int(round_up(inputytop,2)*1000)
+                riyb = int(round_up(inputybottom,2)*1000)
+
+                #only really need to check whether the top of the candidate starts within the range of the height of the key
+                #sadly we have to feather this a little because... well... people can't format Word documents to save their lives. (-10 below)
+
+                if rcyt-10 <= riyt and rcyt >= riyb:
+                # if inputytop >= compareybottom and inputybottom <= compareytop: 
                     item['used']=1
                     return item
 
@@ -43,45 +61,40 @@ def is_likely_key(item_value,found_keys):
     
     return 0
 
-def exact_matcher(candidate,item_list,output_set,found_these_keys):
+def exact_matcher(key_candidate,item_list,output_set,found_these_keys):
 
     found = 0
 
-    suffix_char_list = [':',';','']
-
-    for char in suffix_char_list:
-        key_candidate = candidate + char
-
-        for item in item_list:
-            potential_key = stringclean(item['text'])
-            if potential_key == key_candidate:
-                text_box_dict = item['box']
-                on_page = item['text_page']
-                found =  get_matches(item_list=item_list,input_dict=text_box_dict,key=key_candidate,on_page=on_page)
-                if found is not None:
-                    found_these_keys.append(key_candidate)
-                    output_set.append(
-                        {
-                            candidate:{
-                                'value_sets':[{
-                                    'text':stringclean(found['text']),
-                                    'original_text': found['text'],
-                                    'text_box_location':{
-                                        'page': on_page,
-                                        'box':found['box']
-                                    }
-                                }],
-                                'key_box_location': text_box_dict,
-                                'key_box_page':on_page,
-                                'found_via': key_candidate,
-                                'found_clauses':[],
-                                'find_method':'key_val_box'
-                            },
-                            'sorter': item['sorter'] 
-                        }
-                    )
-                    item['used']=1
-                    found = 1
+    for item in item_list:
+        potential_key = stringclean(item['text'])
+        if potential_key == key_candidate:
+            text_box_dict = item['box']
+            on_page = item['text_page']
+            found =  get_matches(item_list=item_list,input_dict=text_box_dict,key=key_candidate,on_page=on_page)
+            if found is not None:
+                found_these_keys.append(key_candidate)
+                output_set.append(
+                    {
+                        key_candidate:{
+                            'value_sets':[{
+                                'text':stringclean(found['text']),
+                                'original_text': found['text'],
+                                'text_box_location':{
+                                    'page': on_page,
+                                    'box':found['box']
+                                }
+                            }],
+                            'key_box_location': text_box_dict,
+                            'key_box_page':on_page,
+                            'found_via': key_candidate,
+                            'found_clauses':[],
+                            'find_method':'key_val_box'
+                        },
+                        'sorter': item['sorter'] 
+                    }
+                )
+                item['used']=1
+                found = 1
 
     if found == 1:
         return {
@@ -355,8 +368,9 @@ def build_extractor(file_name):
     for candidate_key_set in keys:
 
         key_candidate = candidate_key_set['key_name']
+
         found_candidate_key = 0
-        exact_outcome = exact_matcher(candidate=key_candidate,item_list=item_list,output_set=kvset,found_these_keys=found_keys)
+        exact_outcome = exact_matcher(key_candidate=key_candidate,item_list=item_list,output_set=kvset,found_these_keys=found_keys)
         found_it = exact_outcome['found']
 
         if found_it==1:
@@ -458,4 +472,3 @@ def build_extractor(file_name):
         'found': used_cnt,
         'cleansed_cnt': cleansed_cnt
     }
-
