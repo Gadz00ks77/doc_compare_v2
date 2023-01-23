@@ -159,14 +159,30 @@ else:
         
         page_view_expander2.image(plot_img2)
 
+        st.text('Key Values')
+        st.json(this_keys_json2,expanded=False)
+
     with col1:
 
         compare1 = cs.return_candidate(filename=filename,key=key_lookup_val)
         compare2 = cs.return_candidate(filename=filename2,key=key_lookup_val)
         result = cs.compare_it(compare_first=compare1.upper(),compare_second=compare2.upper())
         presult = str(int(result * 100))+'%'
+        diff_set_return = cs.diff_word_json(doc_json1=this_keys_json,doc_json2=this_keys_json2)
 
         col1.title('Analysis')
 
-        col1.text('Overall Similarity')
-        col1.header(presult)
+        col1.header('Overall Similarity')
+        col1.subheader(presult)
+
+        col1.header('Word Comparison')
+
+        col1.subheader(filename)
+        for lines in diff_set_return['doc1'].split('\n'):
+            col1.markdown(lines)
+
+        col1.subheader(filename2)
+        for lines in diff_set_return['doc2'].split('\n'):
+            col1.markdown(lines)
+
+

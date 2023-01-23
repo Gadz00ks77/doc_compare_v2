@@ -63,9 +63,12 @@ def boldtag_viamerge(file_name):
         boldoutputj = j.load(f)
 
     for page in boldoutputj:
-        # if page['page_num']=='1':
+        # if page['page_num']==2:
+            # print('yeah')
+            page_num = page['page_num']
             for block in page['output']['Blocks']:
                 if block['BlockType']=='MERGED':
+
                     candidate_text = block['Text']
                     candidate_geo = block['Geometry']
 
@@ -76,8 +79,10 @@ def boldtag_viamerge(file_name):
 
                     cand_dict = {'x1':x1,'x2':x2,'y1':y1,'y2':y2}
 
-                    for tpage in outputj:
-                        # if tpage['page_num']=='1':
+                    same_page_t = list(filter(lambda page: page['page_num'] == page_num, outputj))
+
+                    for tpage in same_page_t:
+                        # if tpage['page_num']==2:
                             for tblock in tpage['output']['Blocks']:
                                 if tblock['BlockType']=='MERGED':
                                     targ_text = tblock['Text']
@@ -98,6 +103,8 @@ def boldtag_viamerge(file_name):
 
     with open(f'./textbox_working_textract/{folder}/tagged_output.json', 'w') as f:
         j.dump(outputj, f, ensure_ascii=False)
+
+    return 1
 
 def page_margin_set(file_name):
 
@@ -208,7 +215,6 @@ def margset_for_page(page_num,doc_margins,page_margins):
 
     return page_out_set
 
-
 def tag_margins_doc_level(file_name):
 
     folder = file_name.replace(' ','_').replace('-','_').replace(".pdf","")
@@ -242,3 +248,6 @@ def tag_margins_doc_level(file_name):
         j.dump(outputj, f, ensure_ascii=False)
 
     return 1
+
+
+

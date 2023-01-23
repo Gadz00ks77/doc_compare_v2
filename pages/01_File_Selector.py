@@ -48,7 +48,7 @@ if file1 is not None or file2 is not None:
 
             # 2. BOLD FINDER
             bg.run_bold_process(file_name=filename1)
-            col3.text(f'Bold Process')
+            col3.text(f'Completed bold extraction process')
 
             # 3. TEXTRACTOR 
             txtex_txt.collect_textract_all_pages(file_name=filename1)
@@ -73,9 +73,11 @@ if file1 is not None or file2 is not None:
 
             # 1. CONVERT IMAGES
             page_count = ig.convert_image_set(filename2)
+            col4.text(f'Images Converted')
 
             # 3. BOLD FINDER
             bg.run_bold_process(file_name=filename2)
+            col4.text(f'Completed bold extraction process')
 
             # 3. TEXTRACTOR 
             txtex_txt.collect_textract_all_pages(file_name=filename2)

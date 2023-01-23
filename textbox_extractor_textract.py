@@ -7,6 +7,7 @@ import logging
 from botocore.exceptions import ClientError
 import copy
 import concurrent.futures
+import re
 
 logger = logging.getLogger(__name__)
 
@@ -150,9 +151,272 @@ def add_to_box_list(current_box_list,candidate_corner,line_text,line_id,line_fre
         }]})    
     return current_box_list
 
-def gen_merged_box(raw_output):
+def likely_page_number(text):
 
-    outputj = raw_output
+    page_regex = [
+        'Page\s[0-9]+',
+        'Page\s[0-9]+\sof',
+        'PAGE\s[0-9]+\sOF',
+        '.+Page\s[0-9]+$',
+    ]
+
+    found = 0
+
+    for r in page_regex:
+        m = re.match(r,text)
+        if m is not None:
+            found = 1
+
+    return found
+
+def in_it(alist,afield,avalue):
+
+    for item in alist:
+        if avalue == item[afield]:
+            return 1
+        
+    return 0
+
+def has_multi_at_y(text_multis_list,candidate_text,y_top):
+
+    if likely_page_number(candidate_text)==1:
+        text_to_check = 'ZZ_ PAGE SET'
+    else:
+        text_to_check = candidate_text
+
+    top_to_check = round(y_top,2)
+
+    for t in text_multis_list:
+        if t['name']==text_to_check:
+            for c in t['matched_geos']:
+                this_len = len(c['set'])
+                for s in c['set']:
+                    check_against_top = round(s['Top'],2)
+                    check_against_bottom = round(s['Height'],2) + round(s['Top'],2)
+                    if top_to_check >= check_against_top and top_to_check <= check_against_bottom and this_len > 1:
+                        return 1
+
+    return 0
+
+def remove_guff(file_path):
+
+    # DO NOT USE ON BOLD FILES
+
+    with open(f'{file_path}/raw_output.json', 'rb') as f:
+        out_raw = j.load(f)   
+
+    all_text = []
+
+    page_cnt = 0
+
+    for page in out_raw:
+        page_cnt = page_cnt + 1
+        for block in page['output']['Blocks']:
+            if block['BlockType']=='LINE':
+                if likely_page_number(text=block['Text'])==1:
+                    all_text.append({
+                        'text':'ZZ_ PAGE SET',
+                            'geo':block['Geometry']['BoundingBox']
+                    })
+                else:
+                    all_text.append({
+                        'text':block['Text'],
+                            'geo':block['Geometry']['BoundingBox']
+                    })
+
+    all_text_of_same_type = []
+
+    for t in all_text:
+        this_text = t['text']
+        this_geo = t['geo']
+        if in_it(all_text_of_same_type,'name',this_text)==0:
+            all_text_of_same_type.append({
+                'name':this_text,
+                'geo_set':[this_geo]
+            })
+        else:
+            for st in all_text_of_same_type:
+                if st['name']==this_text:
+                    st['geo_set'].append(this_geo)
+
+    max_id = 0
+
+    for c in all_text_of_same_type:
+        for g in c['geo_set']:
+            found_match = 0
+            if 'matched_geos' not in c:
+                max_id += 1
+                c['matched_geos']=[{
+                    'id':max_id,
+                    'set':[g]
+                }]
+                found_match = 1
+            else:
+                for m in c['matched_geos']:
+                    this_id = m['id']
+                    to_check_top = round(g['Top'],2)
+                    for s in m['set']:
+                        against_top = round(s['Top'],2)
+                        against_bottom = round(s['Top']+s['Height'],2)
+                        if to_check_top >= against_top and to_check_top <= against_bottom:
+                            found_match = 1
+                            m['set'].append(g)
+                            break
+                                    
+                if found_match == 0:
+                    max_id += 1
+                    c['matched_geos'].append(
+                        {
+                            'id':max_id,
+                            'set':[g]
+                        }
+                    )
+                
+    lose_it = []
+    final = []
+
+    for page in out_raw:
+        page_num = page['page_num']
+        keep_these_blocks = [] 
+        for block in page['output']['Blocks']:
+            if block['BlockType']=='LINE':
+                if block['Confidence']>50:
+                    if has_multi_at_y(all_text_of_same_type, block['Text'],block['Geometry']['BoundingBox']['Top'])==0:
+                        keep_these_blocks.append(block)
+                    else:
+                        lose_it.append(block)    
+                    
+                elif has_multi_at_y(all_text_of_same_type, block['Text'],block['Geometry']['BoundingBox']['Top'])==0:
+                    keep_these_blocks.append(block)
+                else:
+                    lose_it.append(block)
+
+        page['Blocks'] = copy.deepcopy(keep_these_blocks)
+
+        final.append({'page_num':page_num,'output':{'Blocks':keep_these_blocks}})
+
+    with open(f'{file_path}/cleansed_output.json', 'w') as f:
+        j.dump(final, f, ensure_ascii=False)
+
+    return 1
+
+def get_likely_headers_n_footers(raw_output):
+
+    tops = {}
+
+    for page in raw_output:
+        box_list = []
+        for block in page['output']['Blocks']:
+            this_id = block['Id']
+            if block['BlockType'] == 'LINE':
+                this_top = str(round(block['Geometry']['BoundingBox']['Top'],2))
+                this_text = block['Text']
+                is_page = likely_page_number(text=this_text)
+                if is_page == 1:
+                    print('yes')
+
+                if this_top not in tops:
+                    tops[this_top]={}
+                    tops[this_top][this_text]=1
+                    if is_page == 1:
+                        if 'is_page' in tops[this_top]:
+                            tops[this_top]['is_page']=tops[this_top]['is_page']+1
+                        else:
+                            tops[this_top]['is_page']=1
+                else:
+                    if this_text not in tops[this_top]:
+                        tops[this_top][this_text]=1
+                        if is_page == 1:
+                            if 'is_page' in tops[this_top]:
+                                tops[this_top]['is_page']=tops[this_top]['is_page']+1
+                            else:
+                                tops[this_top]['is_page']=1
+                    else:
+                        tops[this_top][this_text]=tops[this_top][this_text]+1 
+                        if is_page == 1:
+                            tops[this_top]['is_page']=tops[this_top]['is_page']+1         
+
+    sorted_keys = sorted(tops)
+
+    sorted_output = {}
+    repeat_cnt = 0
+
+    for item in sorted_keys:
+        sorted_output[item] = tops[item]
+    
+    for pos in sorted_output:
+        found_multi = 0
+        for text in sorted_output[pos]:
+            if sorted_output[pos][text]>1:
+                repeat_cnt = 0
+                found_multi = 1
+
+        if found_multi ==0:
+            repeat_cnt = repeat_cnt + 1
+            if repeat_cnt == 2:
+                break
+            else:
+                header_y_p = float(pos)
+
+    rsorted_keys = sorted(tops,reverse=True)
+
+    rsorted_output = {}
+    repeat_cnt = 0
+
+    for item in rsorted_keys:
+        rsorted_output[item] = tops[item]
+
+    for pos in rsorted_output:
+        found_multi = 0
+        found_many = 0
+        for text in rsorted_output[pos]:
+            if rsorted_output[pos][text]>1:
+                found_multi = 1
+                repeat_cnt = 0
+            if len(str(rsorted_output[pos][text]).split())>=3 and rsorted_output[pos][text]==1:
+                found_many = found_many + 1
+
+        if found_many > 1:    
+            found_multi = 0
+            repeat_cnt = 0 
+
+        if found_multi ==0:
+            repeat_cnt = repeat_cnt + 1
+            if repeat_cnt == 2:
+                break
+            else:
+                footer_y_p = float(pos)
+            
+    return {
+        'min_y':header_y_p,
+        'max_y':footer_y_p
+        }
+
+def gen_merged_box(raw_output,bold=None):
+
+    # # CLEANSE HEADER AND FOOTER RECORDS
+
+    # if bold is None:
+
+    #     fetch_hfs = get_likely_headers_n_footers(
+    #         raw_output=raw_output
+    #     )
+
+    #     for page in raw_output:
+    #         new_block_arr = []
+    #         for block in page['output']['Blocks']:
+    #             # if 'Text' in block:
+    #             #     if block['Text']=='PAGE 2 OF 12':
+    #             #         print('yes')
+    #             top_chk = round(block['Geometry']['BoundingBox']['Top'],2)
+    #             if top_chk < fetch_hfs['min_y'] or top_chk > fetch_hfs['max_y'] :
+    #                 continue
+    #             else:
+    #                 new_block_arr.append(block)
+
+    #         page['output']['Blocks']=copy.deepcopy(new_block_arr)            
+
+    outputj = copy.deepcopy(raw_output)
 
     this_line_frequency = build_line_frequency(raw_output=outputj)
     modified_output = tag_line_frequency(raw_output=outputj,linefreqdict=this_line_frequency)
@@ -161,6 +425,7 @@ def gen_merged_box(raw_output):
         box_list = []
         for block in page['output']['Blocks']:
             this_id = block['Id']
+            
             if block['BlockType'] == 'LINE':
 
                 leftx = 100
@@ -307,11 +572,17 @@ def collect_textract_all_pages(file_name,bold=None):
 
     sorted_result = result_set
 
-    merged_output = gen_merged_box(raw_output=sorted_result)
+    with open(f'{textbox_folder}/raw_output.json', 'w') as f:
+        j.dump(sorted_result, f, ensure_ascii=False)
+
+    remove_guff(f'{textbox_folder}')
+
+    with open(f'{textbox_folder}/cleansed_output.json', 'rb') as f:
+        cleansed_result = j.load(f)
+
+    merged_output = gen_merged_box(raw_output=cleansed_result,bold=bold)
 
     with open(f'{textbox_folder}/output.json', 'w') as f:
         j.dump(merged_output, f, ensure_ascii=False)
 
     return sorted_result
-
-# collect_textract_all_pages('westjet 2020-2021.pdf')
