@@ -120,7 +120,7 @@ def add_to_box_list(current_box_list,candidate_corner,line_text,line_id,line_fre
         currbox = box['boxid']
         for line_box in box['line_box_set']:
             if 0 <= (x1 - line_box['x1']) <=0.035: # same or similar left start
-                if abs(y1 - line_box['y2'])<0.015: # next text line (at "usual" font size)
+                if abs(y1 - line_box['y2'])<0.012: # next text line (at "usual" font size)
                     if line_freq < (page_cnt/3.5): # if a line is particularly frequent, leave it on it's own.
                         found_set.append(box)
                         found_box = box
@@ -258,7 +258,7 @@ def remove_guff(file_path):
                     for s in m['set']:
                         against_top = round(s['Top'],2)
                         against_bottom = round(s['Top']+s['Height'],2)
-                        if to_check_top >= against_top and to_check_top <= against_bottom:
+                        if to_check_top >= against_top and to_check_top <= against_bottom: # and len(m['set'])>=3:  # this literal should be modified for page counts
                             found_match = 1
                             m['set'].append(g)
                             break
@@ -284,11 +284,13 @@ def remove_guff(file_path):
                     if has_multi_at_y(all_text_of_same_type, block['Text'],block['Geometry']['BoundingBox']['Top'])==0:
                         keep_these_blocks.append(block)
                     else:
+                        block['reason']='good confidence, but multi ys'
                         lose_it.append(block)    
                     
                 elif has_multi_at_y(all_text_of_same_type, block['Text'],block['Geometry']['BoundingBox']['Top'])==0:
                     keep_these_blocks.append(block)
                 else:
+                    block['reason']='no confidence'
                     lose_it.append(block)
 
         page['Blocks'] = copy.deepcopy(keep_these_blocks)
@@ -297,6 +299,12 @@ def remove_guff(file_path):
 
     with open(f'{file_path}/cleansed_output.json', 'w') as f:
         j.dump(final, f, ensure_ascii=False)
+
+    with open(f'{file_path}/multiy_output.json', 'w') as f:
+        j.dump(all_text_of_same_type, f, ensure_ascii=False)
+    
+    with open(f'{file_path}/cleansed_output_removed.json', 'w') as f:
+        j.dump(lose_it, f, ensure_ascii=False)
 
     return 1
 

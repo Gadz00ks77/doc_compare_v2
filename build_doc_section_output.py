@@ -142,6 +142,9 @@ def fetch_candidate_keys(file_name):
         if akey['key_cnt']<= page_cnt/2:
             final_set.append(akey)
 
+    with open(f'./textbox_working_textract/{folder}/keys_output.json', 'w') as f:
+        j.dump(final_set,f,ensure_ascii=True)
+
     return sorted(final_set, key=lambda d: d['key_length'],reverse=True)    
 
 def gen_item_list_output(file_name):
@@ -379,6 +382,9 @@ def build_extractor(file_name):
             found_keys=exact_outcome['found_keys']
         
     sorted_kvset = sorted(kvset, key=lambda d: d['sorter']) 
+
+    with open(f'./textbox_working_textract/{folder}/initial_kv_match.json','w') as f:
+        j.dump(sorted_kvset,f,ensure_ascii=False)
 
     # CLEANSE FOR REPEATED PAGE BREAKS ETC ETC - GARBAGE
     item_repeat_cnt = repeater_set(item_list)
